@@ -1,0 +1,6 @@
+{
+  "name": "BRO EQ PRO",
+  "description": "A professional audio equalizer and mastering app with a futuristic real-time DSP engine, DAW-style mixer layout, and beautiful neon spectrum visualizers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

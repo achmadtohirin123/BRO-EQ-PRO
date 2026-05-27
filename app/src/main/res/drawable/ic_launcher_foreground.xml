@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer accent circuit ring -->
+    <path
+        android:pathData="M54,54m-27,0a27,27 0,1 1,54 0a27,27 0,1 1,-54 0"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:strokeColor="#1800E5FF" />
+
+    <!-- Sharp glow halo ring -->
+    <path
+        android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0"
+        android:strokeWidth="3.2"
+        android:strokeColor="#2000E5FF" />
+
+    <!-- Inner sharp hardware cyber ring -->
+    <path
+        android:pathData="M54,54m-19,0a19,19 0,1 1,38 0a19,19 0,1 1,-38 0"
+        android:strokeWidth="1.8"
+        android:strokeColor="#00E5FF" />
+
+    <!-- Center Play controller element (centered around 54, 54) -->
+    <path
+        android:pathData="M48,44 L64,54 L48,64 Z"
+        android:fillColor="#00E5FF" />
+
+    <!-- Dynamic spectrum indicator sliders on the bottom of the logo -->
+    <path
+        android:pathData="M39,81v-10 M46,81v-14 M54,81v-19 M62,81v-15 M69,81v-9"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#00E5FF" />
+</vector>
