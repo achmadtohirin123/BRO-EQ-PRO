@@ -142,22 +142,30 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateBandGain(index: Int, gainValue: Float) {
-        viewModelScope.launch {
-            val currentList = _currentGains.value.toMutableList()
-            if (index in currentList.indices) {
-                currentList[index] = gainValue
-                _currentGains.value = currentList
+    private var saveJob: kotlinx.coroutines.Job? = null
 
-                // Store current progress serialized as a custom slider preset (ID = 9999)
-                val csv = currentList.joinToString(",") { String.format("%.1f", it) }
+    fun updateBandGain(index: Int, gainValue: Float) {
+        val currentList = _currentGains.value.toMutableList()
+        if (index in currentList.indices) {
+            currentList[index] = gainValue
+            _currentGains.value = currentList
+
+            // 1. Live sync in-memory for hot low-latency DSP processing
+            audioEngine.updateSettings(_settings.value, currentList)
+
+            // 2. Debounce DB serialization by 400ms to maintain 120 FPS frame consistency
+            saveJob?.cancel()
+            saveJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(400)
+                val updatedList = _currentGains.value
+                val csv = updatedList.joinToString(",") { String.format("%.1f", it) }
                 val currentSettings = _settings.value
                 val updated = currentSettings.copy(
                     currentPresetId = 9999, // Custom modified sliders
                     presetName = csv
                 )
+                _settings.value = updated
                 repository.saveSettings(updated)
-                audioEngine.updateSettings(updated, currentList)
             }
         }
     }

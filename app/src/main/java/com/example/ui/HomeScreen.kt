@@ -17,6 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -891,7 +895,7 @@ fun EqualizerConsole(
     }
 }
 
-// Individual EQ Console Fader column design
+// Individual EQ Console Fader column design with pure touch-responsive layout
 @Composable
 fun EqSliderColumn(
     index: Int,
@@ -904,8 +908,8 @@ fun EqSliderColumn(
     val freqLabel = remember(index, totalBands) {
         val frequencies = when (totalBands) {
             7 -> listOf("60Hz", "150Hz", "400Hz", "1kHz", "2.5kHz", "6kHz", "15kHz")
-            10 -> listOf("31Hz", "62Hz", "125z", "250z", "500z", "1kHz", "2kHz", "4kHz", "8kHz", "16k")
-            15 -> listOf("25Hz", "40Hz", "63Hz", "100Hz", "160Hz", "250Hz", "400Hz", "630Hz", "1kHz", "1.6k", "2.5k", "4kHz", "6.3k", "10k", "16k")
+            10 -> listOf("31Hz", "62Hz", "125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz", "8kHz", "16kHz")
+            15 -> listOf("25Hz", "40Hz", "63Hz", "100Hz", "160Hz", "250Hz", "400Hz", "630Hz", "1kHz", "1.6kHz", "2.5kHz", "4kHz", "6.3kHz", "10kHz", "16kHz")
             18 -> listOf("20Hz", "35Hz", "55Hz", "90Hz", "140Hz", "220Hz", "350Hz", "560Hz", "900Hz", "1.4k", "2.2k", "3.5k", "5.6k", "9kHz", "11k", "14k", "17k", "21k")
             31 -> listOf(
                 "20", "25", "31", "40", "50", "63", "80", "100", "125", "160", "200", "250", "315", "400", "500",
@@ -916,12 +920,16 @@ fun EqSliderColumn(
         if (index < frequencies.size) frequencies[index] else "EQ"
     }
 
+    val density = LocalDensity.current
+    val paddingDp = 10.dp
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(52.dp)
-            .height(260.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .width(46.dp)
+            .height(262.dp)
+            .testTag("eq_slider_${index}"),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         // Fader Gain DB value
         Text(
@@ -929,61 +937,152 @@ fun EqSliderColumn(
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            color = if (gain != 0f) neonColor else Color.Gray
+            color = if (gain != 0f) neonColor else Color.Gray,
+            modifier = Modifier.height(14.dp)
         )
 
-        // Physical vertical slider space using Slider component
+        // Draggable fader track with instant feedback
         Box(
             modifier = Modifier
-                .wrapContentHeight()
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .background(Color(0x06FFFFFF), RoundedCornerShape(8.dp))
+                .border(BorderStroke(1.dp, Color(0x10FFFFFF)), RoundedCornerShape(8.dp))
+                .pointerInput(gain) {
+                    val faderHeightPx = size.height.toFloat()
+                    val paddingPx = with(density) { paddingDp.toPx() }
+                    val activeHeightPx = faderHeightPx - paddingPx * 2f
+
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown()
+                            down.consume()
+
+                            val initialY = down.position.y
+                            if (activeHeightPx > 0) {
+                                val clampedY = (initialY - paddingPx).coerceIn(0f, activeHeightPx)
+                                val norm = 1f - (clampedY / activeHeightPx)
+                                val targetGain = (norm * 24f - 12f).coerceIn(-12f, 12f)
+                                onGainUpdated(targetGain)
+                            }
+
+                            val dragPointerId = down.id
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val anyActive = event.changes.any { it.pressed && it.id == dragPointerId }
+                                if (!anyActive) break
+
+                                val change = event.changes.firstOrNull { it.id == dragPointerId } ?: break
+                                change.consume()
+
+                                val currentY = change.position.y
+                                if (activeHeightPx > 0) {
+                                    val clampedY = (currentY - paddingPx).coerceIn(0f, activeHeightPx)
+                                    val norm = 1f - (clampedY / activeHeightPx)
+                                    val targetGain = (norm * 24f - 12f).coerceIn(-12f, 12f)
+                                    onGainUpdated(targetGain)
+                                }
+                            }
+                        }
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
-            // Background line fader channels
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight(0.85f)
-                    .width(1.4.dp)
-                    .background(Color(0x15FFFFFF)),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // subtle grid notches
-                repeat(9) {
-                    Box(modifier = Modifier
-                        .size(4.dp, 1.dp)
-                        .background(Color(0x35FFFFFF)))
+            // Background ticks and fader line
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val p = paddingDp.toPx()
+                val ah = h - p * 2f
+
+                // Draw central zero line
+                drawLine(
+                    color = Color(0x18FFFFFF),
+                    start = Offset(4.dp.toPx(), h / 2f),
+                    end = Offset(w - 4.dp.toPx(), h / 2f),
+                    strokeWidth = 1.dp.toPx()
+                )
+
+                // Draw vertical slot path
+                drawLine(
+                    color = Color(0x15FFFFFF),
+                    start = Offset(w / 2f, p),
+                    end = Offset(w / 2f, h - p),
+                    strokeWidth = 1.5.dp.toPx()
+                )
+
+                // Draw notches (Grid marks representing dB levels)
+                val notchCount = 9
+                for (i in 0 until notchCount) {
+                    val ratio = i.toFloat() / (notchCount - 1)
+                    val y = p + ratio * ah
+                    val isCenter = i == 4
+                    val tickWidth = if (isCenter) 12.dp.toPx() else 6.dp.toPx()
+                    val color = if (isCenter) neonColor.copy(alpha = 0.5f) else Color(0x18FFFFFF)
+                    drawLine(
+                        color = color,
+                        start = Offset(w / 2f - tickWidth / 2f, y),
+                        end = Offset(w / 2f + tickWidth / 2f, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
                 }
             }
 
-            // Material slider rotated vertical
-            Slider(
-                value = gain,
-                onValueChange = onGainUpdated,
-                valueRange = -12f..12f,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = neonColor,
-                    inactiveTrackColor = Color.Transparent
-                ),
-                modifier = Modifier
-                    .graphicsLayer {
-                        rotationZ = 270f
-                    }
-                    .width(170.dp)
-                    .testTag("eq_slider_${index}")
-            )
+            // Highlighting active level & Fader knob placement
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val h = maxHeight
+                val p = paddingDp
+                val ah = h - p * 2f
+
+                // Normalized value (0.0 at -12dB, 1.0 at +12dB)
+                val norm = ((gain + 12f) / 24f).coerceIn(0f, 1f)
+                val knobY = p + ah * (1f - norm)
+
+                // Active level glow indicator
+                val centerVal = 0.5f
+                if (norm != centerVal) {
+                    val startY = p + ah * (1f - maxOf(norm, centerVal))
+                    val heightVal = ah * abs(norm - centerVal)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = startY)
+                            .width(3.dp)
+                            .height(heightVal)
+                            .background(neonColor.copy(alpha = 0.45f), RoundedCornerShape(1.5.dp))
+                    )
+                }
+
+                // Premium tactile slide handle
+                Box(
+                    modifier = Modifier
+                        .offset(y = knobY - 10.dp)
+                        .align(Alignment.TopCenter)
+                        .size(30.dp, 18.dp)
+                        .shadow(4.dp, RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                        .border(BorderStroke(1.dp, if (gain != 0f) neonColor else Color(0xFF9E9E9E)), RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(2.dp)
+                            .background(if (gain != 0f) neonColor else Color.Gray)
+                    )
+                }
+            }
         }
 
-        // Notch position label (Central divider value)
+        // Frequency Label (Hz/kHz) at the bottom
         Text(
             text = freqLabel,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace,
             color = Color.White,
-            maxLines = 1
+            maxLines = 1,
+            modifier = Modifier.height(14.dp)
         )
     }
 }
