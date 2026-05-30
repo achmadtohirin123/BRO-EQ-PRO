@@ -20,8 +20,11 @@ class AudioSessionReceiver : BroadcastReceiver() {
             // Register session ID dynamically if received
             try {
                 if (action == AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION) {
-                    // Open and trigger DSP on this external session if possible
-                    Log.d("AudioSessionReceiver", "Targeting Master effects on session: $sessionId")
+                    Log.d("AudioSessionReceiver", "Targeting Master effects on session: $sessionId from $packageName")
+                    AudioEngine.registerSession(sessionId)
+                } else if (action == AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION) {
+                    Log.d("AudioSessionReceiver", "Releasing Master effects on session: $sessionId")
+                    AudioEngine.unregisterSession(sessionId)
                 }
             } catch (e: Exception) {
                 Log.e("AudioSessionReceiver", "Error binding dynamic session: ${e.message}")
