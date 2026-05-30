@@ -921,17 +921,18 @@ fun EqSliderColumn(
     }
 
     val density = LocalDensity.current
-    val paddingDp = 10.dp
+    val paddingDp = 12.dp
+    val currentOnGainUpdated by rememberUpdatedState(onGainUpdated)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(46.dp)
-            .height(262.dp)
+            .width(44.dp)
+            .height(270.dp)
             .testTag("eq_slider_${index}"),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Fader Gain DB value
+        // Fader Gain DB value (e.g. -2.5, -5.5, +0.0)
         Text(
             text = String.format("%+.1f", gain),
             fontSize = 9.sp,
@@ -946,9 +947,9 @@ fun EqSliderColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(Color(0x06FFFFFF), RoundedCornerShape(8.dp))
-                .border(BorderStroke(1.dp, Color(0x10FFFFFF)), RoundedCornerShape(8.dp))
-                .pointerInput(gain) {
+                .background(Color(0x05FFFFFF), RoundedCornerShape(6.dp))
+                .border(BorderStroke(1.dp, Color(0x0CFFFFFF)), RoundedCornerShape(6.dp))
+                .pointerInput(index) {
                     val faderHeightPx = size.height.toFloat()
                     val paddingPx = with(density) { paddingDp.toPx() }
                     val activeHeightPx = faderHeightPx - paddingPx * 2f
@@ -963,7 +964,7 @@ fun EqSliderColumn(
                                 val clampedY = (initialY - paddingPx).coerceIn(0f, activeHeightPx)
                                 val norm = 1f - (clampedY / activeHeightPx)
                                 val targetGain = (norm * 24f - 12f).coerceIn(-12f, 12f)
-                                onGainUpdated(targetGain)
+                                currentOnGainUpdated(targetGain)
                             }
 
                             val dragPointerId = down.id
@@ -980,7 +981,7 @@ fun EqSliderColumn(
                                     val clampedY = (currentY - paddingPx).coerceIn(0f, activeHeightPx)
                                     val norm = 1f - (clampedY / activeHeightPx)
                                     val targetGain = (norm * 24f - 12f).coerceIn(-12f, 12f)
-                                    onGainUpdated(targetGain)
+                                    currentOnGainUpdated(targetGain)
                                 }
                             }
                         }
@@ -997,7 +998,7 @@ fun EqSliderColumn(
 
                 // Draw central zero line
                 drawLine(
-                    color = Color(0x18FFFFFF),
+                    color = Color(0x1AFFFFFF),
                     start = Offset(4.dp.toPx(), h / 2f),
                     end = Offset(w - 4.dp.toPx(), h / 2f),
                     strokeWidth = 1.dp.toPx()
@@ -1005,7 +1006,7 @@ fun EqSliderColumn(
 
                 // Draw vertical slot path
                 drawLine(
-                    color = Color(0x15FFFFFF),
+                    color = Color(0x1CFFFFFF),
                     start = Offset(w / 2f, p),
                     end = Offset(w / 2f, h - p),
                     strokeWidth = 1.5.dp.toPx()
@@ -1017,8 +1018,8 @@ fun EqSliderColumn(
                     val ratio = i.toFloat() / (notchCount - 1)
                     val y = p + ratio * ah
                     val isCenter = i == 4
-                    val tickWidth = if (isCenter) 12.dp.toPx() else 6.dp.toPx()
-                    val color = if (isCenter) neonColor.copy(alpha = 0.5f) else Color(0x18FFFFFF)
+                    val tickWidth = if (isCenter) 10.dp.toPx() else 6.dp.toPx()
+                    val color = if (isCenter) neonColor.copy(alpha = 0.6f) else Color(0x15FFFFFF)
                     drawLine(
                         color = color,
                         start = Offset(w / 2f - tickWidth / 2f, y),
@@ -1038,37 +1039,59 @@ fun EqSliderColumn(
                 val norm = ((gain + 12f) / 24f).coerceIn(0f, 1f)
                 val knobY = p + ah * (1f - norm)
 
-                // Active level glow indicator
-                val centerVal = 0.5f
-                if (norm != centerVal) {
-                    val startY = p + ah * (1f - maxOf(norm, centerVal))
-                    val heightVal = ah * abs(norm - centerVal)
+                // Active level glow indicator (Starts from the bottom up to the knob, matching your photograph)
+                val activeLineHeight = ah * norm
+                val startY = p + ah * (1f - norm)
+                if (activeLineHeight > 1.dp) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = startY)
-                            .width(3.dp)
-                            .height(heightVal)
-                            .background(neonColor.copy(alpha = 0.45f), RoundedCornerShape(1.5.dp))
+                            .width(3.2.dp)
+                            .height(activeLineHeight)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        neonColor,
+                                        neonColor.copy(alpha = 0.5f)
+                                    )
+                                ),
+                                RoundedCornerShape(1.6.dp)
+                            )
                     )
                 }
 
-                // Premium tactile slide handle
+                // Premium tactile slide handle (Vertical Pill/Oval exactly like in the picture)
                 Box(
                     modifier = Modifier
-                        .offset(y = knobY - 10.dp)
+                        .offset(y = knobY - 15.dp) // Centered exactly on the normalized position
                         .align(Alignment.TopCenter)
-                        .size(30.dp, 18.dp)
-                        .shadow(4.dp, RoundedCornerShape(4.dp))
-                        .background(Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
-                        .border(BorderStroke(1.dp, if (gain != 0f) neonColor else Color(0xFF9E9E9E)), RoundedCornerShape(4.dp)),
+                        .size(17.dp, 30.dp) // Sleek tall capsule width 17dp, height 30dp
+                        .shadow(4.dp, RoundedCornerShape(9.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF424B57), // Matte grey metallic highlights
+                                    Color(0xFF222932)  // Deep metallic core
+                                )
+                            ),
+                            RoundedCornerShape(9.dp)
+                        )
+                        .border(
+                            BorderStroke(
+                                width = 1.2.dp,
+                                color = if (gain != 0f) neonColor else Color(0xFF5D6978)
+                            ),
+                            RoundedCornerShape(9.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Tactile horizontal bar detail on the knob
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .width(2.dp)
-                            .background(if (gain != 0f) neonColor else Color.Gray)
+                            .width(10.dp)
+                            .height(2.dp)
+                            .background(if (gain != 0f) neonColor.copy(alpha = 0.8f) else Color(0xFF7B8A9C), RoundedCornerShape(1.dp))
                     )
                 }
             }

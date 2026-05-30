@@ -182,16 +182,54 @@ class AudioEngine(private val context: Context) {
         }
     }
 
+    private fun getUiFrequenciesForBandSize(size: Int): List<Float> {
+        return when (size) {
+            7 -> listOf(60f, 150f, 400f, 1000f, 2500f, 6000f, 15000f)
+            10 -> listOf(31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f)
+            15 -> listOf(25f, 40f, 63f, 100f, 160f, 250f, 400f, 630f, 1000f, 1600f, 2500f, 4000f, 6300f, 10000f, 16000f)
+            18 -> listOf(20f, 35f, 55f, 90f, 140f, 220f, 350f, 560f, 900f, 1400f, 2200f, 3500f, 5600f, 9000f, 11000f, 14000f, 17000f, 21000f)
+            31 -> listOf(
+                20f, 25f, 31f, 40f, 50f, 63f, 80f, 100f, 125f, 160f, 200f, 250f, 315f, 400f, 500f,
+                630f, 800f, 1000f, 1200f, 1600f, 2000f, 2500f, 3100f, 4000f, 5000f, 6300f, 8000f, 10000f, 12000f, 16000f, 20000f
+            )
+            else -> List(size) { 1000f }
+        }
+    }
+
     private fun applyEqToEqualizer(eq: Equalizer, gains: FloatArray, preamp: Float) {
         try {
             val numBands = eq.numberOfBands.toInt()
+            val uiFreqs = getUiFrequenciesForBandSize(gains.size)
+
             for (i in 0 until numBands) {
-                val dbVal = if (i < gains.size) gains[i] + preamp else preamp
+                val hwCenterHz = eq.getCenterFreq(i.toShort()) / 1000f
+
+                var weightSum = 0f
+                var weightedGainSum = 0f
+                // Overlap bandwidth tuning (circa 1.3 octaves for high coverage density)
+                val sigma = ln(2.3f)
+
+                for (j in gains.indices) {
+                    val uiFreq = uiFreqs.getOrElse(j) { 1000f }
+                    val dist = ln(hwCenterHz / uiFreq)
+                    val weight = exp(- (dist * dist) / (sigma * sigma))
+
+                    weightedGainSum += gains[j] * weight
+                    weightSum += weight
+                }
+
+                val finalGain = if (weightSum > 0f) {
+                    weightedGainSum / weightSum
+                } else {
+                    0f
+                }
+
+                val dbVal = finalGain + preamp
                 val mbVal = (dbVal * 100).toInt().coerceIn(-1500, 1500)
                 eq.setBandLevel(i.toShort(), mbVal.toShort())
             }
         } catch (e: Exception) {
-            Log.e("AudioEngine", "Error putting band gains to hardware EQ: ${e.message}")
+            Log.e("AudioEngine", "Error putting band gains to hardware EQ: ${e.message}", e)
         }
     }
 
